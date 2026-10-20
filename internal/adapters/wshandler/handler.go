@@ -15,6 +15,10 @@ import (
 	"horizon/flow/internal/service"
 )
 
+// cada cuánto le mandamos un ping al navegador para que el gateway
+// no cierre la conexión por inactividad (YARP corta a los ~100 s)
+const pingInterval = 30 * time.Second
+
 // Handler atiende las conexiones WebSocket del chat
 type Handler struct {
 	chat           *service.ChatService
@@ -95,6 +99,10 @@ func (h *Handler) Connect(w http.ResponseWriter, r *http.Request) {
 		h.readLoop(ctx, conn, eventID, client)
 	}()
 
+	// el ticker deja caer un valor en ticker.C cada pingInterval
+	ticker := time.NewTicker(pingInterval)
+	defer ticker.Stop()
+
 	// este for escribe hacia el navegador
 	for {
 		select {
@@ -105,6 +113,15 @@ func (h *Handler) Connect(w http.ResponseWriter, r *http.Request) {
 			// la sala nos sacó por ir muy lentos: cerramos la conexión
 			conn.Close(websocket.StatusPolicyViolation, "conexión demasiado lenta")
 			return
+
+		case <-ticker.C:
+			// Ping espera el pong, pero con un máximo de 10 s
+			pingCtx, cancelPing := context.WithTimeout(ctx, 10*time.Second)
+			err := conn.Ping(pingCtx)
+			cancelPing()
+			if err != nil {
+				return // el navegador no contestó: la conexión está muerta
+			}
 
 		case msg := <-client.Outbox:
 			err := wsjson.Write(ctx, conn, toOutgoing(msg))
