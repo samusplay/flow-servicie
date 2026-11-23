@@ -1,17 +1,47 @@
+
 # ---------- Etapa 1: compilar ----------
+
 FROM golang:1.27-alpine AS build
+
 WORKDIR /src
 
-# primero solo las dependencias (se reutiliza la caché si no cambian)
+
+
+# Primero solo las dependencias (se reutiliza la caché si no cambian)
+
 COPY go.mod go.sum* ./
+
 RUN go mod download
 
-# luego el código
+
+
+# Luego el código
+
 COPY . .
-RUN CGO_ENABLED=0 go build -o /flow .
+
+RUN CGO_ENABLED=0 GOOS=linux go build -o /flow .
+
+
 
 # ---------- Etapa 2: imagen final, solo el ejecutable ----------
+
 FROM alpine:3.20
-COPY --from=build /flow /flow
+
+RUN apk --no-cache add ca-certificates tzdata
+
+WORKDIR /app
+
+
+
+COPY --from=build /flow /app/flow
+
+
+
+ENV PORT=5007
+
 EXPOSE 5007
-CMD ["/flow"]
+
+
+
+ENTRYPOINT ["/app/flow"]
+
