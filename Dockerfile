@@ -1,7 +1,7 @@
 
 # ---------- Etapa 1: compilar ----------
 
-FROM golang:1.27-alpine AS build
+FROM golang:1.27-alpine3.20 AS build
 
 WORKDIR /src
 
